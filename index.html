@@ -1,143 +1,97 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Jh-Dice-Roller</title>
-	<style>
-		body {font-family: system-ui, sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; text-align: center;}
-		button {margin: 0.4rem; padding: 0.6rem 1.2rem; font-size: 1rem;}
-		#result {font-size: 2.5rem; margin: 1.5rem 0; min-height: 3rem}
-		#status {color: #666; font-size: 0.9rem; }
-		.error {color:blueviolet;} 
-    </style>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Azure Dice Roller</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; }
+    body { max-width: 520px; margin: 2rem auto; padding: 0 1rem; text-align: center; }
+    .die { font-size: 4rem; margin: 1rem; display: inline-block; min-width: 80px; }
+    button { margin: 0.4rem; padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; }
+    #status { margin-top: 1.5rem; padding: 0.8rem; border-radius: 8px; background: #f0f0f0; }
+    .error { background: #fee; color: #900; }
+    .ok { background: #efe; color: #060; }
+  </style>
 </head>
 <body>
-	<h1>Jh-Dice-Roller</h1>
-	<p>This is a simple dice roller application.</p>
+  <h1>🎲 Azure Dice Roller</h1>
+  <p>All random numbers come from the remote REST API.</p>
 
-	<label for="urlInput">MERNa Server URL:</label><br />
-	<input type="text" id="urlInput" placeholder="Enter the URL of your remote MERNa server here..."><br /><br />
+  <div>
+    <button onclick="roll(6)">d6</button>
+    <button onclick="roll(20)">d20</button>
+    <button onclick="rollMany(6, 2)">2d6</button>
+    <button onclick="demonstrateCorsFailure()">Demonstrate CORS Failure</button>
+  </div>
 
-	<button onclick="testMERNaServerConnection()">Test MERNa Server Connection</button>
-	<div id="ping"></div><br /><br />
+  <div id="results" class="die">–</div>
+  <div id="status">Ready</div>
 
-	<script>
-		async function testMERNaServerConnection() {
-			const pingField = document.getElementById("ping");
-			pingField.innerHTML = "";
-			var div = document.getElementById('testingDiv');
-			div.style.display = 'none';
+  <script>
+    const API_BASE = 'https://purple-pebble-09f45d910.4.azurestaticapps.net';
 
-			const url = document.getElementById("urlInput").value + "/api/ping";
-			const response = await fetch(url);
-			const pingResponse = await response.text();
+    // 1. Asynchronously wake the Node.js server as soon as the page loads
+    (async function wakeServer() {
+      setStatus('Waking up the Node.js server…', false);
+      try {
+        const res = await fetch(`${API_BASE}/api/wakeup`);
+        const data = await res.json();
+        setStatus(`Server awake: ${data.message} (${data.timestamp})`, true);
+      } catch (err) {
+        setStatus(`Wake-up failed: ${err.message}`, false);
+      }
+    })();
 
-			if (pingResponse === 'ping response') {
-				pingField.innerHTML = "Success!";
-				var div = document.getElementById('testingDiv');
-				div.style.display = 'block';
-			} 
-		}
-	</script>
+    async function roll(sides) {
+      setStatus(`Rolling d${sides}…`, false);
+      try {
+        // All random numbers come from the remote API
+        const res = await fetch(`${API_BASE}/api/roll/${sides}`);
+        const data = await res.json();
+        document.getElementById('results').textContent = data.value;
+        setStatus(`Rolled ${data.value} on a d${sides}`, true);
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, false);
+      }
+    }
 
-	<div id="testingDiv">
-		<button type="button" onclick="fetchAbout()">Fetch About</button>
-		<div id="fetch-about-result"></div>
-		<br><br>
+    async function rollMany(sides, count) {
+      setStatus(`Rolling ${count}d${sides}…`, false);
+      try {
+        const res = await fetch(`${API_BASE}/api/roll-many?sides=${sides}&count=${count}`);
+        const data = await res.json();
+        document.getElementById('results').textContent = data.rolls.join(' + ') + ' = ' + data.total;
+        setStatus(`Total: ${data.total}`, true);
+      } catch (err) {
+        setStatus(`Error: ${err.message}`, false);
+      }
+    }
 
-		<button type="button" onclick="fetch2Plus2()">Fetch 2plus2</button>
-		<div id="fetch-2plus2-result"></div>
-		<br><br>
+    // 4. Demonstrates a CORS failure condition
+    async function demonstrateCorsFailure() {
+      setStatus('Calling endpoint that has NO CORS headers…', false);
+      try {
+        // This request will be blocked by the browser
+        const res = await fetch(`${API_BASE}/api/no-cors-random?min=1&max=6`);
+        const data = await res.json();
+        // This line will never run when called from a different origin
+        document.getElementById('results').textContent = data.value;
+        setStatus('Unexpected success', true);
+      } catch (err) {
+        document.getElementById('results').textContent = '🚫';
+        setStatus(
+          `CORS FAILURE (expected):\n${err.message}\n\nOpen the browser console (F12) to see the full CORS error.`,
+          false
+        );
+      }
+    }
 
-		Add two integers on the Node.js server.<br />
-		<select onchange="addTwoIntegers()" id="x-value">
-			<option>1</option>
-			<option>2</option>
-			<option>3</option>
-			<option>100</option>
-		</select> +
-
-		<select onchange="addTwoIntegers()" id="y-value">
-			<option>1</option>
-			<option>2</option>
-			<option>3</option>
-			<option>100</option>
-		</select> = 
-		<input id="sum" disabled></input><br /><br /><br />
-
-		<button type="button" onclick="calculateBMI()">Calculate BMI</button>
-		<div id="bmi-result"></div>
-		<br><br>
-
-		<script>
-			let fetchAboutCounter = 0
-			async function fetchAbout() {
-				fetchAboutCounter++
-				const url = document.getElementById("urlInput").value + "/about";
-				const response = await fetch(url)
-				const responseText = await response.text()
-				document.getElementById("fetch-about-result").innerHTML = responseText + " ("+fetchAboutCounter+")"
-			}
-
-			let fetch2plus2Counter = 0
-			async function fetch2Plus2() {
-				fetch2plus2Counter++
-				const url = document.getElementById("urlInput").value + "/2plus2";
-				const response = await fetch(url)
-				const responseText = await response.text()
-				document.getElementById("fetch-2plus2-result").innerHTML = responseText + " ("+fetch2plus2Counter+")"
-			}
-
-			async function addTwoIntegers() {
-				const x = document.getElementById("x-value").value
-				const y = document.getElementById("y-value").value
-
-				// Note the URL (fetch) string will look something like '/add-two-integers?x=2&y=1' when it is sent.
-				const url = document.getElementById("urlInput").value
-				const fetchString = url+"/add-two-integers?x="+x+"&y="+y
-				const response = await fetch(fetchString)
-				const responseText = await response.text()
-				document.getElementById("sum").value = responseText
-			}
-
-			async function calculateBMI() {
-				// Approximate height and weight for a man in the US. 
-				const url = document.getElementById("urlInput").value;
-				const fetchString = url+'/calculate-bmi?feet=5&inches=10&lbs=186';
-				const response = await fetch(fetchString)
-				const responseText = await response.text()
-				console.log(responseText)
-				document.getElementById("bmi-result").innerHTML = responseText
-			}
-		</script>
-
-		<button onclick="fetchBatman()">Batman</button>
-		<div id="batmanJSON">Batman JSON</div><br /><br />
-		<script>
-			async function fetchBatman() {
-				const url = document.getElementById("urlInput").value + "/batman";
-				const response = await fetch(url);
-				const batmanResponse = await response.json();
-
-				const batmanJSONField = document.getElementById("batmanJSON");
-				const batmanResponseText = "<pre>"+JSON.stringify(batmanResponse, null, 4)+"</pre"
-				batmanJSONField.innerHTML = batmanResponseText
-			}
-		</script>
-
-		<button onclick="testFavoritePlaces()">Favorite Places</button>
-		<div id="favoritePlacesJSON">Favorite Places JSON</div><br /><br />
-		<script>
-			async function testFavoritePlaces() {
-				const url = document.getElementById("urlInput").value + "/api/favorite-places";
-				const response = await fetch(url);
-				const places = await response.json();
-
-				const favoritePlacesJSONField = document.getElementById("favoritePlacesJSON");
-				const favoritePlacesText = "<pre>"+JSON.stringify(places, null, 4)+"</pre"
-				favoritePlacesJSONField.innerHTML = favoritePlacesText
-			}
-		</script>
-	</div>
+    function setStatus(msg, ok) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = ok ? 'ok' : 'error';
+    }
+  </script>
 </body>
 </html>
